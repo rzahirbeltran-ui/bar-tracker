@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "BarTracker",
+    "slug": "bar-tracker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "ios": {
+      "bundleIdentifier": "com.bartracker.app",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "La app necesita Bluetooth para conectarse al sensor de la barra.",
+        "NSBluetoothPeripheralUsageDescription": "La app necesita Bluetooth para conectarse al sensor de la barra."
+      }
+    },
+    "plugins": [
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "modes": [
+            "central"
+          ],
+          "bluetoothAlwaysPermission": "La app necesita Bluetooth para conectarse al sensor de la barra."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "4d96fec1-6a59-428b-acaa-5412bac75668"
+      }
+    },
+    "owner": "rafael_zahir"
+  }
+}
