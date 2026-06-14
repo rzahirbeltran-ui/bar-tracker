@@ -41,6 +41,13 @@ jobs:
           cd ios
           pod install --repo-update
 
+      - name: Fix ReactCommon module map duplicado
+        run: |
+          # use_modular_headers! genera un .modulemap para ReactCommon pero
+          # ReactCommon ya tiene su propio module.modulemap → redefinition error
+          rm -f ios/Pods/Headers/Public/ReactCommon/ReactCommon.modulemap
+          echo "ReactCommon modulemap duplicado eliminado"
+
       - name: Deshabilitar firma automática
         run: |
           PBXPROJ="ios/BarTracker.xcodeproj/project.pbxproj"
