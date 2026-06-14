@@ -24,8 +24,8 @@ jobs:
       - name: Expo Prebuild (genera proyecto Xcode)
         run: npx expo prebuild --platform ios --clean --no-install
 
-      - name: Actualizar CocoaPods
-        run: sudo gem install cocoapods
+      - name: Fix Podfile (quitar keyword no soportado en runner)
+        run: sed -i '' '/:privacy_file_aggregation_enabled/d' ios/Podfile
 
       - name: Pod install
         run: |
