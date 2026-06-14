@@ -41,42 +41,33 @@ jobs:
           cd ios
           pod install --repo-update
 
-      - name: Ver estructura generada
-        run: ls ios/
-
-      - name: Ver schemes disponibles
-        run: |
-          cd ios
-          xcodebuild -workspace BarTracker.xcworkspace -list
-
       - name: Compilar sin firmar
         run: |
+          set -o pipefail
           cd ios
-          xcodebuild archive \
+          xcodebuild build \
             -workspace BarTracker.xcworkspace \
             -scheme BarTracker \
             -configuration Release \
-            -archivePath "$RUNNER_TEMP/BarTracker.xcarchive" \
-            CODE_SIGN_IDENTITY="-" \
+            -sdk iphoneos \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_ENTITLEMENTS="" \
             DEVELOPMENT_TEAM="" \
             GCC_TREAT_WARNINGS_AS_ERRORS=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-            SKIP_INSTALL=NO > /tmp/xcode.log 2>&1
-          EXIT=$?
-          echo "=== ERRORES ==="
-          grep -E " error:|BUILD FAILED" /tmp/xcode.log || echo "(ninguno visible)"
-          echo "=== ULTIMAS 30 LINEAS ==="
-          tail -30 /tmp/xcode.log
+            2>&1 | grep -E "error:|BUILD FAILED|BUILD SUCCEEDED|fatal" || true
+          EXIT=${PIPESTATUS[0]}
+          echo "--- xcodebuild exited with: $EXIT ---"
           exit $EXIT
 
       - name: Empaquetar como .ipa
         run: |
+          APP=$(find "$RUNNER_TEMP/DerivedData" -name "*.app" -path "*Release-iphoneos*" | head -1)
+          echo "App encontrada: $APP"
           mkdir -p "$RUNNER_TEMP/Payload"
-          cp -r "$RUNNER_TEMP/BarTracker.xcarchive/Products/Applications/BarTracker.app" \
-                "$RUNNER_TEMP/Payload/"
+          cp -r "$APP" "$RUNNER_TEMP/Payload/"
           cd "$RUNNER_TEMP"
           zip -r BarTracker.ipa Payload/
 
