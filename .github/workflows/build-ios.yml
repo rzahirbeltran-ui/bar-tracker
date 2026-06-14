@@ -26,15 +26,15 @@ jobs:
 
       - name: Fix Podfile
         run: |
-          python3 - <<'EOF'
-          import re
-          content = open('ios/Podfile').read()
-          # Quitar keyword no soportado en CocoaPods viejo
-          content = content.replace(':privacy_file_aggregation_enabled => true,', '')
-          # Agregar use_modular_headers! que necesita ExpoModulesCore
-          content = re.sub(r'(platform :ios[^\n]*\n)', r'\1use_modular_headers!\n', content)
-          open('ios/Podfile', 'w').write(content)
-          EOF
+          sed -i '' '/:privacy_file_aggregation_enabled/d' ios/Podfile
+          python3 -c "
+          import re, sys
+          f = 'ios/Podfile'
+          c = open(f).read()
+          c = re.sub(r'(platform :ios[^\n]*\n)', r'\1use_modular_headers!\n', c)
+          open(f,'w').write(c)
+          print('Podfile patched')
+          "
 
       - name: Pod install
         run: |
