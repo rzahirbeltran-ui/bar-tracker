@@ -24,8 +24,17 @@ jobs:
       - name: Expo Prebuild (genera proyecto Xcode)
         run: npx expo prebuild --platform ios --clean --no-install
 
-      - name: Fix Podfile (quitar keyword no soportado en runner)
-        run: sed -i '' '/:privacy_file_aggregation_enabled/d' ios/Podfile
+      - name: Fix Podfile
+        run: |
+          python3 - <<'EOF'
+          import re
+          content = open('ios/Podfile').read()
+          # Quitar keyword no soportado en CocoaPods viejo
+          content = content.replace(':privacy_file_aggregation_enabled => true,', '')
+          # Agregar use_modular_headers! que necesita ExpoModulesCore
+          content = re.sub(r'(platform :ios[^\n]*\n)', r'\1use_modular_headers!\n', content)
+          open('ios/Podfile', 'w').write(content)
+          EOF
 
       - name: Pod install
         run: |
