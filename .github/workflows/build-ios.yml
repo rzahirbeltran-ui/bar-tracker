@@ -44,19 +44,33 @@ jobs:
       - name: Ver estructura generada
         run: ls ios/
 
+      - name: Ver schemes disponibles
+        run: |
+          cd ios
+          xcodebuild -workspace BarTracker.xcworkspace -list
+
       - name: Compilar sin firmar
         run: |
           cd ios
-
           xcodebuild archive \
             -workspace BarTracker.xcworkspace \
             -scheme BarTracker \
             -configuration Release \
             -archivePath "$RUNNER_TEMP/BarTracker.xcarchive" \
-            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            DEVELOPMENT_TEAM=""
+            CODE_SIGNING_ENTITLEMENTS="" \
+            DEVELOPMENT_TEAM="" \
+            GCC_TREAT_WARNINGS_AS_ERRORS=NO \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
+            SKIP_INSTALL=NO > /tmp/xcode.log 2>&1
+          EXIT=$?
+          echo "=== ERRORES ==="
+          grep -E " error:|BUILD FAILED" /tmp/xcode.log || echo "(ninguno visible)"
+          echo "=== ULTIMAS 30 LINEAS ==="
+          tail -30 /tmp/xcode.log
+          exit $EXIT
 
       - name: Empaquetar como .ipa
         run: |
