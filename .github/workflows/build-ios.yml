@@ -1,0 +1,62 @@
+name: Build iOS IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:      # permite lanzarlo manualmente desde GitHub
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependencias npm
+        run: npm install
+
+      - name: Expo Prebuild (genera proyecto Xcode)
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      - name: Pod install
+        run: |
+          cd ios
+          pod install --repo-update
+
+      - name: Ver estructura generada
+        run: ls ios/
+
+      - name: Compilar sin firmar
+        run: |
+          cd ios
+
+          xcodebuild archive \
+            -workspace BarTracker.xcworkspace \
+            -scheme BarTracker \
+            -configuration Release \
+            -archivePath "$RUNNER_TEMP/BarTracker.xcarchive" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM=""
+
+      - name: Empaquetar como .ipa
+        run: |
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -r "$RUNNER_TEMP/BarTracker.xcarchive/Products/Applications/BarTracker.app" \
+                "$RUNNER_TEMP/Payload/"
+          cd "$RUNNER_TEMP"
+          zip -r BarTracker.ipa Payload/
+
+      - name: Subir .ipa como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: BarTracker-ios
+          path: ${{ runner.temp }}/BarTracker.ipa
+          retention-days: 7
