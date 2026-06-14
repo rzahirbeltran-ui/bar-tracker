@@ -41,18 +41,17 @@ jobs:
           cd ios
           pod install --repo-update
 
-      - name: Deshabilitar firma automática en project.pbxproj
+      - name: Deshabilitar firma automática
         run: |
           PBXPROJ="ios/BarTracker.xcodeproj/project.pbxproj"
           sed -i '' 's/ProvisioningStyle = Automatic/ProvisioningStyle = Manual/g' "$PBXPROJ"
           sed -i '' 's/DEVELOPMENT_TEAM = [A-Z0-9]*;/DEVELOPMENT_TEAM = "";/g' "$PBXPROJ"
           sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = ".*";/PROVISIONING_PROFILE_SPECIFIER = "";/g' "$PBXPROJ"
-          echo "project.pbxproj patched"
+          echo "pbxproj patched"
 
       - name: Apuntar Node.js para React Native bundler
         run: |
           echo "export NODE_BINARY=$(which node)" > ios/.xcode.env.local
-          echo "NODE_BINARY -> $(which node)"
 
       - name: Compilar sin firmar
         run: |
@@ -74,27 +73,33 @@ jobs:
             GCC_TREAT_WARNINGS_AS_ERRORS=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
             CLANG_ENABLE_EXPLICIT_MODULES=NO \
+            CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES=YES \
             2>&1 | tee /tmp/xcode.log
           BUILD_EXIT=${PIPESTATUS[0]}
           set -e
+          echo "BUILD EXIT: $BUILD_EXIT"
           echo "=== ERRORES ==="
-          grep -E "error:" /tmp/xcode.log | grep -v "note:" | grep -v "will be run" | head -40
-          echo "=== ULTIMAS 60 LINEAS ==="
-          tail -60 /tmp/xcode.log
+          grep -E "error:|fatal:|Killed|LLVM ERROR" /tmp/xcode.log \
+            | grep -v "note:" | grep -v "will be run" | head -40
           APP="$RUNNER_TEMP/build/Release-iphoneos/BarTracker.app"
           echo "App size: $(du -sh "$APP" 2>/dev/null || echo '0B')"
-          if [ -f "$APP/BarTracker" ]; then
-            echo "Binary EXISTS - OK"
-            exit 0
-          fi
-          echo "Binary MISSING - exit $BUILD_EXIT"
+          [ -f "$APP/BarTracker" ] && echo "Binary EXISTS - OK" && exit 0
+          echo "Binary MISSING"
           exit $BUILD_EXIT
+
+      - name: Subir log de Xcode (si falla)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-log
+          path: /tmp/xcode.log
+          retention-days: 3
 
       - name: Empaquetar como .ipa
         run: |
           APP="$RUNNER_TEMP/build/Release-iphoneos/BarTracker.app"
-          if [ ! -d "$APP" ] || [ ! -f "$APP/BarTracker" ]; then
-            echo "ERROR: App incompleta"
+          if [ ! -f "$APP/BarTracker" ]; then
+            echo "ERROR: binario no encontrado"
             exit 1
           fi
           echo "App: $(du -sh "$APP" | cut -f1)"
