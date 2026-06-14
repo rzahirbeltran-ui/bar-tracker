@@ -3,7 +3,7 @@ name: Build iOS IPA
 on:
   push:
     branches: [main, master]
-  workflow_dispatch:      # permite lanzarlo manualmente desde GitHub
+  workflow_dispatch:
 
 jobs:
   build-ios:
@@ -21,14 +21,14 @@ jobs:
       - name: Instalar dependencias npm
         run: npm install
 
-      - name: Expo Prebuild (genera proyecto Xcode)
+      - name: Expo Prebuild
         run: npx expo prebuild --platform ios --clean --no-install
 
       - name: Fix Podfile
         run: |
           sed -i '' '/:privacy_file_aggregation_enabled/d' ios/Podfile
           python3 -c "
-          import re, sys
+          import re
           f = 'ios/Podfile'
           c = open(f).read()
           c = re.sub(r'(platform :ios[^\n]*\n)', r'\1use_modular_headers!\n', c)
@@ -43,13 +43,12 @@ jobs:
 
       - name: Compilar sin firmar
         run: |
-          set -o pipefail
           cd ios
           xcodebuild build \
             -workspace BarTracker.xcworkspace \
             -scheme BarTracker \
             -configuration Release \
-            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
             SYMROOT="$RUNNER_TEMP/build" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
@@ -57,28 +56,32 @@ jobs:
             DEVELOPMENT_TEAM="" \
             GCC_TREAT_WARNINGS_AS_ERRORS=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-            2>&1 | grep -E "error:|BUILD FAILED|BUILD SUCCEEDED|fatal" || true
-          EXIT=${PIPESTATUS[0]}
-          echo "--- xcodebuild exited with: $EXIT ---"
-          echo "--- Contenido de build dir ---"
-          ls -la "$RUNNER_TEMP/build/" 2>/dev/null || echo "build dir no existe"
-          ls -la "$RUNNER_TEMP/build/Release-iphoneos/" 2>/dev/null || echo "Release-iphoneos no existe"
-          exit $EXIT
+            2>&1 | tee /tmp/xcode.log
+          BUILD_EXIT=${PIPESTATUS[0]}
+          echo "=============================="
+          echo "BUILD EXIT CODE: $BUILD_EXIT"
+          echo "=============================="
+          grep " error:" /tmp/xcode.log | head -30 || true
+          echo "--- ULTIMAS 20 LINEAS ---"
+          tail -20 /tmp/xcode.log
+          echo "--- BUILD DIR ---"
+          ls "$RUNNER_TEMP/build/Release-iphoneos/" 2>/dev/null || echo "Release-iphoneos no existe"
+          exit $BUILD_EXIT
 
       - name: Empaquetar como .ipa
         run: |
           APP="$RUNNER_TEMP/build/Release-iphoneos/BarTracker.app"
           if [ ! -d "$APP" ]; then
-            echo "ERROR: No se encontro $APP"
-            find "$RUNNER_TEMP/build" -name "*.app" -type d 2>/dev/null || echo "Ninguna .app encontrada"
+            echo "ERROR: No se encontro BarTracker.app en $APP"
+            find "$RUNNER_TEMP/build" -name "*.app" -type d 2>/dev/null
             exit 1
           fi
-          echo "App encontrada: $APP"
+          echo "App encontrada ($(($(du -sk "$APP" | cut -f1) / 1024)) MB)"
           mkdir -p "$RUNNER_TEMP/Payload"
           cp -r "$APP" "$RUNNER_TEMP/Payload/"
           cd "$RUNNER_TEMP"
           zip -r BarTracker.ipa Payload/
-          ls -lh BarTracker.ipa
+          echo "IPA size: $(du -sh BarTracker.ipa | cut -f1)"
 
       - name: Subir .ipa como artefacto
         uses: actions/upload-artifact@v4
