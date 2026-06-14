@@ -44,14 +44,10 @@ jobs:
       - name: Deshabilitar firma automática en project.pbxproj
         run: |
           PBXPROJ="ios/BarTracker.xcodeproj/project.pbxproj"
-          # Cambiar ProvisioningStyle a Manual
           sed -i '' 's/ProvisioningStyle = Automatic/ProvisioningStyle = Manual/g' "$PBXPROJ"
-          # Limpiar DEVELOPMENT_TEAM
           sed -i '' 's/DEVELOPMENT_TEAM = [A-Z0-9]*;/DEVELOPMENT_TEAM = "";/g' "$PBXPROJ"
-          # Limpiar provisioning profiles
           sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = ".*";/PROVISIONING_PROFILE_SPECIFIER = "";/g' "$PBXPROJ"
           echo "project.pbxproj patched"
-          grep -c "ProvisioningStyle" "$PBXPROJ" || true
 
       - name: Apuntar Node.js para React Native bundler
         run: |
@@ -78,34 +74,27 @@ jobs:
             GCC_TREAT_WARNINGS_AS_ERRORS=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
             CLANG_ENABLE_EXPLICIT_MODULES=NO \
-            2>&1 | xcpretty --color
+            2>&1 | tee /tmp/xcode.log
           BUILD_EXIT=${PIPESTATUS[0]}
           set -e
-          echo "=============================="
-          echo "BUILD EXIT: $BUILD_EXIT"
-          echo "=============================="
-          echo "--- Contenido Release-iphoneos ---"
-          ls "$RUNNER_TEMP/build/Release-iphoneos/" 2>/dev/null || echo "No existe"
-          # Si el .app existe, el build funcionó aunque algún script post-build haya fallado
+          echo "=== ERRORES ==="
+          grep -E "error:" /tmp/xcode.log | grep -v "note:" | grep -v "will be run" | head -40
+          echo "=== ULTIMAS 60 LINEAS ==="
+          tail -60 /tmp/xcode.log
           APP="$RUNNER_TEMP/build/Release-iphoneos/BarTracker.app"
-          if [ -d "$APP" ]; then
-            echo "App size: $(du -sh "$APP" | cut -f1)"
-            echo "Binary: $(ls "$APP/BarTracker" 2>/dev/null && echo 'EXISTS' || echo 'MISSING')"
-            ls "$APP/" | head -10
-            if [ -f "$APP/BarTracker" ]; then
-              echo "Build completo - OK"
-              exit 0
-            fi
+          echo "App size: $(du -sh "$APP" 2>/dev/null || echo '0B')"
+          if [ -f "$APP/BarTracker" ]; then
+            echo "Binary EXISTS - OK"
+            exit 0
           fi
-          echo "Build incompleto"
+          echo "Binary MISSING - exit $BUILD_EXIT"
           exit $BUILD_EXIT
 
       - name: Empaquetar como .ipa
         run: |
           APP="$RUNNER_TEMP/build/Release-iphoneos/BarTracker.app"
-          if [ ! -d "$APP" ]; then
-            echo "ERROR: No se encontro BarTracker.app"
-            find "$RUNNER_TEMP/build" -name "*.app" -type d 2>/dev/null
+          if [ ! -d "$APP" ] || [ ! -f "$APP/BarTracker" ]; then
+            echo "ERROR: App incompleta"
             exit 1
           fi
           echo "App: $(du -sh "$APP" | cut -f1)"
