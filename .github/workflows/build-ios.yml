@@ -41,47 +41,61 @@ jobs:
           cd ios
           pod install --repo-update
 
+      - name: Deshabilitar firma automática en project.pbxproj
+        run: |
+          PBXPROJ="ios/BarTracker.xcodeproj/project.pbxproj"
+          # Cambiar ProvisioningStyle a Manual
+          sed -i '' 's/ProvisioningStyle = Automatic/ProvisioningStyle = Manual/g' "$PBXPROJ"
+          # Limpiar DEVELOPMENT_TEAM
+          sed -i '' 's/DEVELOPMENT_TEAM = [A-Z0-9]*;/DEVELOPMENT_TEAM = "";/g' "$PBXPROJ"
+          # Limpiar provisioning profiles
+          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = ".*";/PROVISIONING_PROFILE_SPECIFIER = "";/g' "$PBXPROJ"
+          echo "project.pbxproj patched"
+          grep -c "ProvisioningStyle" "$PBXPROJ" || true
+
       - name: Compilar sin firmar
         run: |
           cd ios
+          set +e
           xcodebuild build \
             -workspace BarTracker.xcworkspace \
             -scheme BarTracker \
             -configuration Release \
-            -destination "generic/platform=iOS" \
+            -sdk iphoneos \
             SYMROOT="$RUNNER_TEMP/build" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_ENTITLEMENTS="" \
+            PROVISIONING_PROFILE="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
             DEVELOPMENT_TEAM="" \
             GCC_TREAT_WARNINGS_AS_ERRORS=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-            2>&1 | tee /tmp/xcode.log
+            2>&1 | xcpretty --color
           BUILD_EXIT=${PIPESTATUS[0]}
+          set -e
           echo "=============================="
-          echo "BUILD EXIT CODE: $BUILD_EXIT"
+          echo "BUILD EXIT: $BUILD_EXIT"
           echo "=============================="
-          grep " error:" /tmp/xcode.log | head -30 || true
-          echo "--- ULTIMAS 20 LINEAS ---"
-          tail -20 /tmp/xcode.log
-          echo "--- BUILD DIR ---"
-          ls "$RUNNER_TEMP/build/Release-iphoneos/" 2>/dev/null || echo "Release-iphoneos no existe"
+          echo "--- Contenido Release-iphoneos ---"
+          ls "$RUNNER_TEMP/build/Release-iphoneos/" 2>/dev/null || echo "No existe"
           exit $BUILD_EXIT
 
       - name: Empaquetar como .ipa
         run: |
           APP="$RUNNER_TEMP/build/Release-iphoneos/BarTracker.app"
           if [ ! -d "$APP" ]; then
-            echo "ERROR: No se encontro BarTracker.app en $APP"
+            echo "ERROR: No se encontro BarTracker.app"
             find "$RUNNER_TEMP/build" -name "*.app" -type d 2>/dev/null
             exit 1
           fi
-          echo "App encontrada ($(($(du -sk "$APP" | cut -f1) / 1024)) MB)"
+          echo "App: $(du -sh "$APP" | cut -f1)"
           mkdir -p "$RUNNER_TEMP/Payload"
           cp -r "$APP" "$RUNNER_TEMP/Payload/"
           cd "$RUNNER_TEMP"
           zip -r BarTracker.ipa Payload/
-          echo "IPA size: $(du -sh BarTracker.ipa | cut -f1)"
+          echo "IPA: $(du -sh BarTracker.ipa | cut -f1)"
 
       - name: Subir .ipa como artefacto
         uses: actions/upload-artifact@v4
