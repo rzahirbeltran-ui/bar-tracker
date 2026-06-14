@@ -24,6 +24,9 @@ jobs:
       - name: Expo Prebuild (genera proyecto Xcode)
         run: npx expo prebuild --platform ios --clean --no-install
 
+      - name: Actualizar CocoaPods
+        run: sudo gem install cocoapods
+
       - name: Pod install
         run: |
           cd ios
