@@ -64,12 +64,19 @@ jobs:
 
       - name: Empaquetar como .ipa
         run: |
-          APP=$(find "$RUNNER_TEMP/DerivedData" -name "*.app" -path "*Release-iphoneos*" | head -1)
+          echo "Buscando .app en DerivedData..."
+          find "$RUNNER_TEMP/DerivedData" -name "*.app" 2>/dev/null || echo "No encontrado en DerivedData"
+          APP=$(find "$RUNNER_TEMP/DerivedData" -name "BarTracker.app" | head -1)
+          if [ -z "$APP" ]; then
+            echo "ERROR: No se encontro BarTracker.app"
+            exit 1
+          fi
           echo "App encontrada: $APP"
           mkdir -p "$RUNNER_TEMP/Payload"
           cp -r "$APP" "$RUNNER_TEMP/Payload/"
           cd "$RUNNER_TEMP"
           zip -r BarTracker.ipa Payload/
+          ls -lh BarTracker.ipa
 
       - name: Subir .ipa como artefacto
         uses: actions/upload-artifact@v4
