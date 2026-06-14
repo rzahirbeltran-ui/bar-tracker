@@ -8,7 +8,8 @@
       "bundleIdentifier": "com.bartracker.app",
       "infoPlist": {
         "NSBluetoothAlwaysUsageDescription": "La app necesita Bluetooth para conectarse al sensor de la barra.",
-        "NSBluetoothPeripheralUsageDescription": "La app necesita Bluetooth para conectarse al sensor de la barra."
+        "NSBluetoothPeripheralUsageDescription": "La app necesita Bluetooth para conectarse al sensor de la barra.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "plugins": [
