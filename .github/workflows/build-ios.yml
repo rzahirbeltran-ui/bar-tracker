@@ -72,6 +72,7 @@ jobs:
             DEVELOPMENT_TEAM="" \
             GCC_TREAT_WARNINGS_AS_ERRORS=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
+            CLANG_ENABLE_EXPLICIT_MODULES=NO \
             2>&1 | xcpretty --color
           BUILD_EXIT=${PIPESTATUS[0]}
           set -e
