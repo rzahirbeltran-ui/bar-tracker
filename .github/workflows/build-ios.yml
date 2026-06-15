@@ -10,62 +10,33 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Instalar dependencias npm
+      - name: Install JS dependencies
         run: npm install
 
-      - name: Expo Prebuild
-        run: npx expo prebuild --platform ios --clean --no-install
+      - name: Set NODE_BINARY for Xcode
+        run: echo "export NODE_BINARY=$(which node)" > ios/.xcode.env.local
 
-      - name: Fix Podfile
-        run: |
-          sed -i '' '/:privacy_file_aggregation_enabled/d' ios/Podfile
-          python3 -c "
-          import re
-          f = 'ios/Podfile'
-          c = open(f).read()
-          c = re.sub(r'(platform :ios[^\n]*\n)', r'\1use_modular_headers!\n', c)
-          open(f,'w').write(c)
-          print('Podfile patched')
-          "
+      - name: Install CocoaPods dependencies
+        run: cd ios && pod install
 
-      - name: Pod install
-        run: |
-          cd ios
-          pod install --repo-update
-
-      - name: Fix ReactCommon module map duplicado
-        run: |
-          # use_modular_headers! genera un .modulemap para ReactCommon pero
-          # ReactCommon ya tiene su propio module.modulemap → redefinition error
-          rm -f ios/Pods/Headers/Public/ReactCommon/ReactCommon.modulemap
-          echo "ReactCommon modulemap duplicado eliminado"
-
-      - name: Deshabilitar firma automática
+      - name: Disable automatic code signing
         run: |
           PBXPROJ="ios/BarTracker.xcodeproj/project.pbxproj"
           sed -i '' 's/ProvisioningStyle = Automatic/ProvisioningStyle = Manual/g' "$PBXPROJ"
           sed -i '' 's/DEVELOPMENT_TEAM = [A-Z0-9]*;/DEVELOPMENT_TEAM = "";/g' "$PBXPROJ"
           sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = ".*";/PROVISIONING_PROFILE_SPECIFIER = "";/g' "$PBXPROJ"
-          echo "pbxproj patched"
 
-      - name: Apuntar Node.js para React Native bundler
+      - name: Build iOS app
         run: |
-          echo "export NODE_BINARY=$(which node)" > ios/.xcode.env.local
-
-      - name: Compilar sin firmar
-        run: |
-          cd ios
-          set +e
+          set -o pipefail
           xcodebuild build \
-            -workspace BarTracker.xcworkspace \
+            -workspace ios/BarTracker.xcworkspace \
             -scheme BarTracker \
             -configuration Release \
             -sdk iphoneos \
@@ -79,22 +50,10 @@ jobs:
             DEVELOPMENT_TEAM="" \
             GCC_TREAT_WARNINGS_AS_ERRORS=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-            CLANG_ENABLE_EXPLICIT_MODULES=NO \
-            CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES=YES \
             2>&1 | tee /tmp/xcode.log
-          BUILD_EXIT=${PIPESTATUS[0]}
-          set -e
-          echo "BUILD EXIT: $BUILD_EXIT"
-          echo "=== ERRORES ==="
-          grep -E "error:|fatal:|Killed|LLVM ERROR" /tmp/xcode.log \
-            | grep -v "note:" | grep -v "will be run" | head -40
-          APP="$RUNNER_TEMP/build/Release-iphoneos/BarTracker.app"
-          echo "App size: $(du -sh "$APP" 2>/dev/null || echo '0B')"
-          [ -f "$APP/BarTracker" ] && echo "Binary EXISTS - OK" && exit 0
-          echo "Binary MISSING"
-          exit $BUILD_EXIT
+          echo "Build exit: ${PIPESTATUS[0]}"
 
-      - name: Subir log de Xcode (si falla)
+      - name: Upload Xcode log on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -102,22 +61,15 @@ jobs:
           path: /tmp/xcode.log
           retention-days: 3
 
-      - name: Empaquetar como .ipa
+      - name: Package as IPA
         run: |
           APP="$RUNNER_TEMP/build/Release-iphoneos/BarTracker.app"
-          if [ ! -f "$APP/BarTracker" ]; then
-            echo "ERROR: binario no encontrado"
-            exit 1
-          fi
-          echo "App: $(du -sh "$APP" | cut -f1)"
           mkdir -p "$RUNNER_TEMP/Payload"
           cp -r "$APP" "$RUNNER_TEMP/Payload/"
-          cd "$RUNNER_TEMP"
-          zip -r BarTracker.ipa Payload/
-          echo "IPA: $(du -sh BarTracker.ipa | cut -f1)"
+          cd "$RUNNER_TEMP" && zip -r BarTracker.ipa Payload/
+          ls -lh "$RUNNER_TEMP/BarTracker.ipa"
 
-      - name: Subir .ipa como artefacto
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: BarTracker-ios
           path: ${{ runner.temp }}/BarTracker.ipa

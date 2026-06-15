@@ -1,116 +1,123 @@
 import React from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  SafeAreaView,
+  ScrollView,
 } from 'react-native';
-import { useBLE } from '../ble/useBLE';
+import {useBLE, BLEStatus} from '../ble/useBLE';
 
-const STATUS_COLOR: Record<string, string> = {
-  idle:       '#888',
-  scanning:   '#f0a500',
-  connecting: '#f0a500',
-  connected:  '#2ecc71',
-  error:      '#e74c3c',
+const STATUS_COLORS: Record<BLEStatus, string> = {
+  idle: '#888',
+  scanning: '#f90',
+  connecting: '#f90',
+  connected: '#4c4',
+  error: '#e44',
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  idle:       'Sin conexión',
-  scanning:   'Buscando BarTracker...',
-  connecting: 'Conectando...',
-  connected:  'Conectado',
-  error:      'Error de conexión',
+const STATUS_LABELS: Record<BLEStatus, string> = {
+  idle: 'Idle',
+  scanning: 'Scanning...',
+  connecting: 'Connecting...',
+  connected: 'Connected',
+  error: 'Error',
 };
 
-export default function HomeScreen() {
-  const { status, lastSample, samples, connect, disconnect } = useBLE();
-  const connected = status === 'connected';
-
-  const fmt = (n: number, decimals = 3) => n.toFixed(decimals);
-
+function Val({label, value}: {label: string; value: number}) {
   return (
-    <SafeAreaView style={styles.root}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>BarTracker</Text>
-        <View style={[styles.dot, { backgroundColor: STATUS_COLOR[status] }]} />
-        <Text style={[styles.statusText, { color: STATUS_COLOR[status] }]}>
-          {STATUS_LABEL[status]}
-        </Text>
-      </View>
-
-      {/* Botón principal */}
-      <TouchableOpacity
-        style={[styles.btn, connected ? styles.btnDisconnect : styles.btnConnect]}
-        onPress={connected ? disconnect : connect}
-        disabled={status === 'scanning' || status === 'connecting'}
-      >
-        <Text style={styles.btnText}>
-          {connected ? 'Desconectar' : 'Conectar'}
-        </Text>
-      </TouchableOpacity>
-
-      {/* Datos en tiempo real */}
-      {lastSample && (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Última muestra</Text>
-
-          <View style={styles.row}>
-            <Text style={styles.label}>Acelerómetro (g)</Text>
-          </View>
-          <View style={styles.row}>
-            <MetricBox label="X" value={fmt(lastSample.ax)} />
-            <MetricBox label="Y" value={fmt(lastSample.ay)} />
-            <MetricBox label="Z" value={fmt(lastSample.az)} />
-          </View>
-
-          <View style={[styles.row, { marginTop: 12 }]}>
-            <Text style={styles.label}>Giroscopio (°/s)</Text>
-          </View>
-          <View style={styles.row}>
-            <MetricBox label="X" value={fmt(lastSample.gx, 1)} />
-            <MetricBox label="Y" value={fmt(lastSample.gy, 1)} />
-            <MetricBox label="Z" value={fmt(lastSample.gz, 1)} />
-          </View>
-
-          <Text style={styles.timestamp}>
-            t = {(lastSample.timestampUs / 1_000_000).toFixed(3)} s
-          </Text>
-        </View>
-      )}
-
-      {/* Contador */}
-      {connected && (
-        <Text style={styles.counter}>{samples.length} muestras recibidas</Text>
-      )}
-    </SafeAreaView>
-  );
-}
-
-function MetricBox({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.metricBox}>
-      <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={styles.metricValue}>{value}</Text>
+    <View style={styles.row}>
+      <Text style={styles.label}>{label}</Text>
+      <Text style={styles.value}>{value.toFixed(4)}</Text>
     </View>
   );
 }
 
+export default function HomeScreen() {
+  const {status, lastSample, connect, disconnect} = useBLE();
+  const isConnected = status === 'connected';
+  const isBusy = status === 'scanning' || status === 'connecting';
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <Text style={styles.title}>BarTracker</Text>
+
+      <View style={styles.statusRow}>
+        <View
+          style={[styles.dot, {backgroundColor: STATUS_COLORS[status]}]}
+        />
+        <Text style={styles.statusText}>{STATUS_LABELS[status]}</Text>
+      </View>
+
+      <TouchableOpacity
+        style={[styles.btn, isBusy && styles.btnDisabled]}
+        onPress={isConnected ? disconnect : connect}
+        disabled={isBusy}>
+        <Text style={styles.btnText}>
+          {isConnected ? 'Disconnect' : isBusy ? 'Please wait...' : 'Connect'}
+        </Text>
+      </TouchableOpacity>
+
+      <ScrollView style={styles.dataBox}>
+        {lastSample ? (
+          <>
+            <Text style={styles.sectionLabel}>Accelerometer (g)</Text>
+            <Val label="ax" value={lastSample.ax} />
+            <Val label="ay" value={lastSample.ay} />
+            <Val label="az" value={lastSample.az} />
+            <Text style={[styles.sectionLabel, {marginTop: 12}]}>
+              Gyroscope (°/s)
+            </Text>
+            <Val label="gx" value={lastSample.gx} />
+            <Val label="gy" value={lastSample.gy} />
+            <Val label="gz" value={lastSample.gz} />
+            <Text style={styles.tsLabel}>
+              t = {lastSample.timestamp} ms
+            </Text>
+          </>
+        ) : (
+          <Text style={styles.noData}>
+            {isConnected ? 'Waiting for data...' : 'Connect to see IMU data'}
+          </Text>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
 const styles = StyleSheet.create({
-  root:           { flex: 1, backgroundColor: '#0f0f0f', padding: 20 },
-  header:         { alignItems: 'center', marginBottom: 24 },
-  title:          { color: '#fff', fontSize: 28, fontWeight: '700', marginBottom: 6 },
-  dot:            { width: 10, height: 10, borderRadius: 5, marginBottom: 4 },
-  statusText:     { fontSize: 13 },
-  btn:            { padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 24 },
-  btnConnect:     { backgroundColor: '#2ecc71' },
-  btnDisconnect:  { backgroundColor: '#e74c3c' },
-  btnText:        { color: '#fff', fontSize: 17, fontWeight: '600' },
-  card:           { backgroundColor: '#1a1a1a', borderRadius: 16, padding: 16, marginBottom: 16 },
-  cardTitle:      { color: '#aaa', fontSize: 12, marginBottom: 10, textTransform: 'uppercase' },
-  row:            { flexDirection: 'row', justifyContent: 'space-between' },
-  label:          { color: '#666', fontSize: 11, marginBottom: 6 },
-  metricBox:      { flex: 1, alignItems: 'center', backgroundColor: '#252525', borderRadius: 8, padding: 10, marginHorizontal: 4 },
-  metricLabel:    { color: '#888', fontSize: 11, marginBottom: 2 },
-  metricValue:    { color: '#fff', fontSize: 16, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  timestamp:      { color: '#444', fontSize: 11, marginTop: 12, textAlign: 'right' },
-  counter:        { color: '#444', fontSize: 12, textAlign: 'center' },
+  container: {flex: 1, backgroundColor: '#111', padding: 20},
+  title: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  statusRow: {flexDirection: 'row', alignItems: 'center', marginBottom: 16},
+  dot: {width: 12, height: 12, borderRadius: 6, marginRight: 8},
+  statusText: {color: '#ccc', fontSize: 16},
+  btn: {
+    backgroundColor: '#2a7',
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  btnDisabled: {backgroundColor: '#555'},
+  btnText: {color: '#fff', fontSize: 18, fontWeight: '600'},
+  dataBox: {flex: 1, backgroundColor: '#1e1e1e', borderRadius: 10, padding: 16},
+  sectionLabel: {color: '#aaa', fontSize: 13, marginBottom: 6},
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  label: {color: '#888', fontSize: 15},
+  value: {color: '#fff', fontSize: 15, fontFamily: 'Menlo'},
+  tsLabel: {color: '#666', fontSize: 12, marginTop: 12, textAlign: 'right'},
+  noData: {color: '#666', fontSize: 16, textAlign: 'center', marginTop: 40},
 });
