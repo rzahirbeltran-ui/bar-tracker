@@ -15,9 +15,7 @@ if linkage != nil
 end
 
 target 'BarTracker' do
-  config = use_native_modules!
-
-  pod 'react-native-ble-plx', :path => '../node_modules/react-native-ble-plx'
+  config = use_native_modules!(File.join(__dir__, ".."))
 
   use_react_native!(
     :path => config[:reactNativePath],
